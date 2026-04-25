@@ -36,6 +36,10 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         
+        // 启用阴影渲染
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 柔和阴影
+        
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
@@ -45,52 +49,247 @@
         
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(5, 10, 7.5);
+        // 启用灯光阴影
+        directionalLight.castShadow = true;
+        // 设置阴影相机参数，确保阴影覆盖整个场景
+        directionalLight.shadow.camera.left = -15;
+        directionalLight.shadow.camera.right = 15;
+        directionalLight.shadow.camera.top = 15;
+        directionalLight.shadow.camera.bottom = -15;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
         scene.add(directionalLight);
 
-        // 球体数据数组
-        const spheres = [];
-        const sphereCount = 20;
-        
-        // 几何体和材质准备
-        const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+        // ==================== 地面配置 ====================
+        const groundConfig = {
+            y: -1,
+            size: 50,
+            color: 0x2a2a4a,
+            opacity: 0.8,
+            roughness: 0.8,
+            metalness: 0.2
+        };
 
-        // 创建20个随机位置、随机颜色的球体
-        for (let i = 0; i < sphereCount; i++) {
-            // 随机颜色
-            const color = new THREE.Color(
-                Math.random(),
-                Math.random(),
-                Math.random()
+        // 创建半透明地面平面
+        const planeGeometry = new THREE.PlaneGeometry(groundConfig.size, groundConfig.size);
+        const planeMaterial = new THREE.MeshStandardMaterial({
+            color: groundConfig.color,
+            transparent: true,
+            opacity: groundConfig.opacity,
+            roughness: groundConfig.roughness,
+            metalness: groundConfig.metalness
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = groundConfig.y;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        // ==================== 球体工厂系统 ====================
+        
+        // 球体默认配置
+        const DEFAULT_SPHERE_CONFIG = {
+            // 基础属性
+            radius: 0.5,
+            segments: 32,
+            castShadow: true,
+            
+            // 材质属性
+            roughness: 0.3,
+            metalness: 0.3,
+            
+            // 位置范围（随机生成用）
+            positionX: { min: -8, max: 8 },
+            positionZ: { min: -8, max: 8 },
+            
+            // 弹跳参数范围（随机生成用）
+            bounceHeight: { min: 1, max: 3 },
+            bounceSpeed: { min: 2, max: 5 },
+            
+            // 大小变化参数范围（随机生成用）
+            sizeBase: 1,
+            sizeAmplitude: { min: 0.3, max: 0.6 }
+        };
+
+        // 工具函数：在范围内生成随机值
+        function randomInRange(range) {
+            if (typeof range === 'number') return range;
+            if (range.min !== undefined && range.max !== undefined) {
+                return range.min + Math.random() * (range.max - range.min);
+            }
+            return range;
+        }
+
+        // 工具函数：合并配置
+        function mergeConfigs(defaults, overrides) {
+            const result = { ...defaults };
+            for (const key in overrides) {
+                if (overrides[key] !== undefined) {
+                    if (typeof overrides[key] === 'object' && !Array.isArray(overrides[key])) {
+                        result[key] = mergeConfigs(defaults[key] || {}, overrides[key]);
+                    } else {
+                        result[key] = overrides[key];
+                    }
+                }
+            }
+            return result;
+        }
+
+        /**
+         * 创建单个弹跳球体
+         * @param {Object} config - 球体配置
+         * @param {THREE.Scene} scene - 场景
+         * @param {number} groundY - 地面Y坐标（用于防止穿地）
+         * @returns {Object} 球体数据对象
+         */
+        function createBouncingSphere(config, scene, groundY = 0) {
+            const mergedConfig = mergeConfigs(DEFAULT_SPHERE_CONFIG, config);
+            
+            // 创建几何体和材质
+            const geometry = new THREE.SphereGeometry(
+                mergedConfig.radius,
+                mergedConfig.segments,
+                mergedConfig.segments
             );
             
             const material = new THREE.MeshStandardMaterial({
-                color: color,
-                roughness: 0.3,
-                metalness: 0.3
+                color: mergedConfig.color || new THREE.Color(
+                    Math.random(),
+                    Math.random(),
+                    Math.random()
+                ),
+                roughness: mergedConfig.roughness,
+                metalness: mergedConfig.metalness
             });
-
+            
             const sphere = new THREE.Mesh(geometry, material);
             
-            // 随机位置（x和z在-8到8之间，y初始为0）
-            sphere.position.x = (Math.random() - 0.5) * 16;
-            sphere.position.y = Math.random() * 2;
-            sphere.position.z = (Math.random() - 0.5) * 16;
-
-            // 弹跳参数
-            const bounceHeight = 1 + Math.random() * 2; // 弹跳高度 1-3
-            const bounceSpeed = 2 + Math.random() * 3; // 弹跳速度 2-5
-            const phase = Math.random() * Math.PI * 2; // 初始相位，让球体不同步
-
-            spheres.push({
+            // 设置阴影
+            if (mergedConfig.castShadow) {
+                sphere.castShadow = true;
+            }
+            
+            // 设置位置
+            const x = mergedConfig.positionX !== undefined 
+                ? (typeof mergedConfig.positionX === 'object' 
+                    ? randomInRange(mergedConfig.positionX) 
+                    : mergedConfig.positionX)
+                : randomInRange(DEFAULT_SPHERE_CONFIG.positionX);
+                
+            const z = mergedConfig.positionZ !== undefined
+                ? (typeof mergedConfig.positionZ === 'object'
+                    ? randomInRange(mergedConfig.positionZ)
+                    : mergedConfig.positionZ)
+                : randomInRange(DEFAULT_SPHERE_CONFIG.positionZ);
+            
+            sphere.position.x = x;
+            sphere.position.z = z;
+            
+            // 初始Y位置（确保在地面以上）
+            const initialY = mergedConfig.initialY !== undefined
+                ? mergedConfig.initialY
+                : groundY + Math.random() * 2;
+            sphere.position.y = initialY;
+            
+            // 计算安全的弹跳高度（确保不会穿地）
+            // 最低点 = baseY - bounceHeight >= groundY
+            // 所以 bounceHeight <= baseY - groundY
+            const rawBounceHeight = randomInRange(mergedConfig.bounceHeight);
+            const maxSafeHeight = sphere.position.y - groundY;
+            const bounceHeight = Math.min(rawBounceHeight, maxSafeHeight * 0.9); // 留10%余量
+            
+            // 其他弹跳参数
+            const bounceSpeed = randomInRange(mergedConfig.bounceSpeed);
+            const phase = mergedConfig.phase !== undefined 
+                ? mergedConfig.phase 
+                : Math.random() * Math.PI * 2;
+            
+            // 大小变化参数
+            const sizeBase = mergedConfig.sizeBase;
+            const sizeAmplitude = randomInRange(mergedConfig.sizeAmplitude);
+            
+            const sphereData = {
                 mesh: sphere,
                 baseY: sphere.position.y,
+                groundY: groundY,
                 bounceHeight: bounceHeight,
                 bounceSpeed: bounceSpeed,
-                phase: phase
-            });
-
-            scene.add(sphere);
+                phase: phase,
+                sizeBase: sizeBase,
+                sizeAmplitude: sizeAmplitude,
+                config: mergedConfig
+            };
+            
+            // 添加到场景
+            if (scene) {
+                scene.add(sphere);
+            }
+            
+            return sphereData;
         }
+
+        /**
+         * 批量创建弹跳球体
+         * @param {number} count - 数量
+         * @param {Object} baseConfig - 基础配置（所有球体共享）
+         * @param {Array<Object>} individualConfigs - 每个球体的独立配置（可选）
+         * @param {THREE.Scene} scene - 场景
+         * @param {number} groundY - 地面Y坐标
+         * @returns {Array<Object>} 球体数据数组
+         */
+        function createSpheres(count, baseConfig = {}, individualConfigs = [], scene, groundY = 0) {
+            const spheres = [];
+            
+            for (let i = 0; i < count; i++) {
+                // 合并配置：默认 -> 基础配置 -> 独立配置
+                let config = { ...baseConfig };
+                
+                // 如果有独立配置，覆盖基础配置
+                if (individualConfigs[i]) {
+                    config = mergeConfigs(config, individualConfigs[i]);
+                }
+                
+                const sphereData = createBouncingSphere(config, scene, groundY);
+                spheres.push(sphereData);
+            }
+            
+            return spheres;
+        }
+
+        // ==================== 创建球体 ====================
+        
+        // 示例：创建20个随机球体（使用默认配置）
+        const sphereCount = 20;
+        
+        // 基础配置（所有球体共享）
+        const baseSphereConfig = {
+            bounceHeight: { min: 1, max: 3 },
+            bounceSpeed: { min: 2, max: 5 },
+            sizeAmplitude: { min: 0.3, max: 0.6 }
+        };
+        
+        // 示例：可以为特定球体指定独立配置
+        const individualConfigs = [
+            // 前3个球体使用特殊配置
+            // {
+            //     color: new THREE.Color(0xff0000), // 红色
+            //     radius: 1, // 更大
+            //     positionX: 0,
+            //     positionZ: 0,
+            //     bounceHeight: 2,
+            //     bounceSpeed: 3,
+            //     sizeAmplitude: 0.5
+            // }
+        ];
+        
+        // 使用工厂函数批量创建球体
+        const spheres = createSpheres(
+            sphereCount,
+            baseSphereConfig,
+            individualConfigs,
+            scene,
+            groundConfig.y
+        );
 
         // 相机位置
         camera.position.z = 15;
@@ -104,6 +303,32 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        /**
+         * 更新单个球体的动画
+         * @param {Object} sphereData - 球体数据
+         * @param {number} elapsedTime - 流逝时间
+         */
+        function updateSphereAnimation(sphereData, elapsedTime) {
+            const { mesh, baseY, groundY, bounceHeight, bounceSpeed, phase, sizeBase, sizeAmplitude } = sphereData;
+            
+            // 计算正弦值，用于弹跳和大小变化
+            const angle = bounceSpeed * elapsedTime + phase;
+            const sineValue = Math.sin(angle);
+            
+            // 弹跳效果：围绕 baseY 上下弹跳
+            // 最低点 = baseY - bounceHeight
+            // 最高点 = baseY + bounceHeight
+            // 由于工厂函数中已限制 bounceHeight <= (baseY - groundY) * 0.9
+            // 所以最低点 >= groundY + 0.1 * (baseY - groundY)，不会穿地
+            mesh.position.y = baseY + bounceHeight * sineValue;
+            
+            // 大小变化：与弹跳同步
+            // 最高点(sin≈1)：scale = sizeBase + sizeAmplitude（变大）
+            // 最低点(sin≈-1)：scale = sizeBase - sizeAmplitude（变小）
+            const scale = sizeBase + sizeAmplitude * sineValue;
+            mesh.scale.set(scale, scale, scale);
+        }
+
         // 动画循环
         const clock = new THREE.Clock();
         
@@ -112,14 +337,9 @@
             
             const elapsedTime = clock.getElapsedTime();
 
-            // 更新每个球体的位置
+            // 更新每个球体的位置和大小
             spheres.forEach(sphereData => {
-                const { mesh, baseY, bounceHeight, bounceSpeed, phase } = sphereData;
-                
-                // 使用正弦函数实现弹跳效果
-                // y = baseY + bounceHeight * sin(bounceSpeed * time + phase)
-                // 取绝对值实现上下弹跳（或者用正弦，正弦会自然上下）
-                mesh.position.y = baseY + bounceHeight * Math.sin(bounceSpeed * elapsedTime + phase);
+                updateSphereAnimation(sphereData, elapsedTime);
             });
 
             renderer.render(scene, camera);
