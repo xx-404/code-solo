@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlowingSphere Web Component 示例</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #eee;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #3399ff, #ff4488);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+        
+        .demo-section {
+            padding: 40px 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .demo-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #3399ff;
+            border-left: 4px solid #3399ff;
+            padding-left: 15px;
+        }
+        
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+        }
+        
+        .demo-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .demo-card-header {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .demo-card-header h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+        }
+        
+        .demo-card-header p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+        
+        .demo-canvas {
+            width: 100%;
+            height: 350px;
+        }
+        
+        glowing-sphere {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls-panel {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        
+        .control-group input[type="range"] {
+            width: 120px;
+            height: 6px;
+            border-radius: 3px;
+            background: #333;
+            outline: none;
+        }
+        
+        .control-group input[type="color"] {
+            width: 40px;
+            height: 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: transparent;
+        }
+        
+        .control-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3399ff, #2277dd);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(51, 153, 255, 0.4);
+        }
+        
+        .code-section {
+            margin-top: 50px;
+        }
+        
+        .code-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        
+        .code-card-header {
+            padding: 15px 20px;
+            background: rgba(51, 153, 255, 0.2);
+            border-bottom: 1px solid rgba(51, 153, 255, 0.3);
+        }
+        
+        .code-card-header h4 {
+            color: #3399ff;
+            font-size: 1rem;
+        }
+        
+        .code-card pre {
+            padding: 20px;
+            margin: 0;
+            overflow-x: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #aaccff;
+        }
+        
+        .code-card code {
+            color: #aaccff;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(51, 153, 255, 0.2);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #3399ff;
+            margin-right: 8px;
+        }
+        
+        .attr-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .attr-table th,
+        .attr-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .attr-table th {
+            background: rgba(51, 153, 255, 0.1);
+            color: #3399ff;
+            font-weight: 500;
+        }
+        
+        .attr-table td {
+            color: #ccc;
+        }
+        
+        .attr-table tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✨ GlowingSphere Web Component</h1>
+        <p>半透明球体 + 动态线框 + 五角星特效 - 封装为可复用的 Web 组件</p>
+    </div>
+
+    <div class="demo-section">
+        <h2 class="demo-title">
+            <span class="tag">原生 Web Components</span>
+            实时演示
+        </h2>
+        
+        <div class="demo-grid">
+            <div class="demo-card">
+                <div class="demo-card-header">
+                    <h3>🎨 交互式演示</h3>
+                    <p>通过控制面板实时调整属性</p>
+                </div>
+                <div class="demo-canvas">
+                    <glowing-sphere id="interactiveSphere"></glowing-sphere>
+                </div>
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <label>球体颜色:</label>
+                        <input type="color" id="sphereColor" value="#3399ff">
+                    </div>
+                    <div class="control-group">
+                        <label>线框颜色:</label>
+                        <input type="color" id="wireframeColor" value="#88ddff">
+                    </div>
+                    <div class="control-group">
+                        <label>星星颜色:</label>
+                        <input type="color" id="starColor" value="#ffdd00">
+                    </div>
+                    <div class="control-group">
+                        <label>背景颜色:</label>
+                        <input type="color" id="backgroundColor" value="#0a0a1a">
+                    </div>
+                    <div class="control-group">
+                        <label>波动速度:</label>
+                        <input type="range" id="waveSpeed" min="0.5" max="5" step="0.1" value="2">
+                        <span id="waveSpeedValue">2.0</span>
+                    </div>
+                    <div class="control-group">
+                        <label>显示星星:</label>
+                        <input type="checkbox" id="showStars" checked>
+                    </div>
+                    <div class="control-group">
+                        <label>显示线框:</label>
+                        <input type="checkbox" id="showWireframe" checked>
+                    </div>
+                    <button class="btn" id="resetBtn">重置</button>
+                </div>
+            </div>
+
+            <div class="demo-card">
+                <div class="demo-card-header">
+                    <h3>🔥 紫色主题</h3>
+                    <p>自定义颜色配置示例</p>
+                </div>
+                <div class="demo-canvas">
+                    <glowing-sphere 
+                        sphere-color="#9933ff"
+                        wireframe-color="#cc88ff"
+                        star-color="#ff44ff"
+                        background-color="#1a0a2e"
+                        wave-speed="3"
+                    ></glowing-sphere>
+                </div>
+            </div>
+
+            <div class="demo-card">
+                <div class="demo-card-header">
+                    <h3>🌊 海洋主题</h3>
+                    <p>隐藏星星，强调波浪效果</p>
+                </div>
+                <div class="demo-canvas">
+                    <glowing-sphere 
+                        sphere-color="#00aaff"
+                        wireframe-color="#66ddff"
+                        star-color="#ffffff"
+                        background-color="#001a33"
+                        show-stars="false"
+                        wave-speed="1.5"
+                        wave-amplitude="0.12"
+                    ></glowing-sphere>
+                </div>
+            </div>
+
+            <div class="demo-card">
+                <div class="demo-card-header">
+                    <h3>⚡ 科技主题</h3>
+                    <p>绿色科技风格，快速波动</p>
+                </div>
+                <div class="demo-canvas">
+                    <glowing-sphere 
+                        sphere-color="#00ff88"
+                        wireframe-color="#44ffaa"
+                        star-color="#88ff44"
+                        background-color="#002211"
+                        wave-speed="4"
+                        wave-amplitude="0.06"
+                    ></glowing-sphere>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="demo-section code-section">
+        <h2 class="demo-title">
+            <span class="tag">API 文档</span>
+            组件属性
+        </h2>
+        
+        <div class="code-card">
+            <div class="code-card-header">
+                <h4>📋 所有可用属性</h4>
+            </div>
+            <table class="attr-table">
+                <thead>
+                    <tr>
+                        <th>属性名</th>
+                        <th>类型</th>
+                        <th>默认值</th>
+                        <th>描述</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>sphere-color</code></td>
+                        <td>String / Number</td>
+                        <td><code>0x3399ff</code></td>
+                        <td>球体颜色，支持十六进制字符串或数字</td>
+                    </tr>
+                    <tr>
+                        <td><code>wireframe-color</code></td>
+                        <td>String / Number</td>
+                        <td><code>0x88ddff</code></td>
+                        <td>线框颜色</td>
+                    </tr>
+                    <tr>
+                        <td><code>star-color</code></td>
+                        <td>String / Number</td>
+                        <td><code>0xffdd00</code></td>
+                        <td>五角星颜色</td>
+                    </tr>
+                    <tr>
+                        <td><code>background-color</code></td>
+                        <td>String / Number</td>
+                        <td><code>0x0a0a1a</code></td>
+                        <td>背景颜色</td>
+                    </tr>
+                    <tr>
+                        <td><code>sphere-opacity</code></td>
+                        <td>Number</td>
+                        <td><code>0.6</code></td>
+                        <td>球体透明度 (0.0 - 1.0)</td>
+                    </tr>
+                    <tr>
+                        <td><code>wave-speed</code></td>
+                        <td>Number</td>
+                        <td><code>2.0</code></td>
+                        <td>波浪动画速度</td>
+                    </tr>
+                    <tr>
+                        <td><code>wave-amplitude</code></td>
+                        <td>Number</td>
+                        <td><code>0.08</code></td>
+                        <td>波浪振幅大小</td>
+                    </tr>
+                    <tr>
+                        <td><code>show-stars</code></td>
+                        <td>Boolean</td>
+                        <td><code>true</code></td>
+                        <td>是否显示五角星</td>
+                    </tr>
+                    <tr>
+                        <td><code>show-wireframe</code></td>
+                        <td>Boolean</td>
+                        <td><code>true</code></td>
+                        <td>是否显示线框</td>
+                    </tr>
+                    <tr>
+                        <td><code>auto-rotate</code></td>
+                        <td>Boolean</td>
+                        <td><code>true</code></td>
+                        <td>球体是否自动旋转</td>
+                    </tr>
+                    <tr>
+                        <td><code>width</code></td>
+                        <td>String</td>
+                        <td><code>"100%"</code></td>
+                        <td>组件宽度</td>
+                    </tr>
+                    <tr>
+                        <td><code>height</code></td>
+                        <td>String</td>
+                        <td><code>"100%"</code></td>
+                        <td>组件高度</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="demo-section code-section">
+        <h2 class="demo-title">
+            <span class="tag">使用示例</span>
+            代码参考
+        </h2>
+        
+        <div class="code-card">
+            <div class="code-card-header">
+                <h4>📄 基础用法 (HTML)</h4>
+            </div>
+            <pre><code>&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+    &lt;script type="importmap"&gt;
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    &lt;/script&gt;
+    &lt;script type="module" src="./GlowingSphereElement.js"&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;!-- 最简单的用法 --&gt;
+    &lt;glowing-sphere style="width: 100vw; height: 100vh;"&gt;&lt;/glowing-sphere&gt;
+    
+    &lt;!-- 自定义颜色 --&gt;
+    &lt;glowing-sphere 
+        sphere-color="#ff4488"
+        wireframe-color="#ff88aa"
+        star-color="#ffdd44"
+        background-color="#1a0a1a"
+    &gt;&lt;/glowing-sphere&gt;
+    
+    &lt;!-- 调整动画参数 --&gt;
+    &lt;glowing-sphere 
+        wave-speed="3.5"
+        wave-amplitude="0.1"
+        sphere-opacity="0.7"
+    &gt;&lt;/glowing-sphere&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+        </div>
+
+        <div class="code-card">
+            <div class="code-card-header">
+                <h4>🔧 JavaScript API 方法</h4>
+            </div>
+            <pre><code>const sphere = document.querySelector('glowing-sphere');
+
+// 获取 Three.js 内部对象
+const scene = sphere.getScene();
+const camera = sphere.getCamera();
+const renderer = sphere.getRenderer();
+const mesh = sphere.getSphere();
+
+// 手动控制（示例：添加自定义动画）
+function customAnimation() {
+    requestAnimationFrame(customAnimation);
+    if (mesh) {
+        mesh.rotation.z += 0.01;
+    }
+}
+
+// 动态修改属性（会自动更新）
+sphere.setAttribute('sphere-color', '#ff0000');
+sphere.setAttribute('wave-speed', '5');</code></pre>
+        </div>
+
+        <div class="code-card">
+            <div class="code-card-header">
+                <h4>💚 Vue 3 组件用法</h4>
+            </div>
+            <pre><code>&lt;template&gt;
+  &lt;div class="app"&gt;
+    &lt;GlowingSphere 
+      :sphere-color="sphereColor"
+      :wireframe-color="wireframeColor"
+      :wave-speed="waveSpeed"
+      :show-stars="showStars"
+      @ready="onReady"
+      @error="onError"
+      style="width: 100%; height: 500px;"
+    /&gt;
+    
+    &lt;button @click="toggleStars"&gt;
+      {{ showStars ? '隐藏星星' : '显示星星' }}
+    &lt;/button&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { ref } from 'vue';
+import GlowingSphere from './GlowingSphere.vue';
+
+const sphereColor = ref(0x3399ff);
+const wireframeColor = ref(0x88ddff);
+const waveSpeed = ref(2.0);
+const showStars = ref(true);
+
+function onReady({ scene, camera, renderer, sphere }) {
+  console.log('GlowingSphere 已就绪');
+  // 可以在这里添加自定义逻辑
+}
+
+function onError(error) {
+  console.error('初始化失败:', error);
+}
+
+function toggleStars() {
+  showStars.value = !showStars.value;
+}
+&lt;/script&gt;</code></pre>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>GlowingSphere Web Component © 2024 | 基于 Three.js 构建</p>
+        <p>支持原生 Web Components 和 Vue 3 两种封装方式</p>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="./GlowingSphereElement.js"></script>
+    
+    <script type="module">
+        const sphere = document.getElementById('interactiveSphere');
+        
+        document.getElementById('sphereColor').addEventListener('input', (e) => {
+            sphere.setAttribute('sphere-color', e.target.value);
+        });
+        
+        document.getElementById('wireframeColor').addEventListener('input', (e) => {
+            sphere.setAttribute('wireframe-color', e.target.value);
+        });
+        
+        document.getElementById('starColor').addEventListener('input', (e) => {
+            sphere.setAttribute('star-color', e.target.value);
+        });
+        
+        document.getElementById('backgroundColor').addEventListener('input', (e) => {
+            sphere.setAttribute('background-color', e.target.value);
+        });
+        
+        document.getElementById('waveSpeed').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            document.getElementById('waveSpeedValue').textContent = value.toFixed(1);
+            sphere.setAttribute('wave-speed', value);
+        });
+        
+        document.getElementById('showStars').addEventListener('change', (e) => {
+            sphere.setAttribute('show-stars', e.target.checked);
+        });
+        
+        document.getElementById('showWireframe').addEventListener('change', (e) => {
+            sphere.setAttribute('show-wireframe', e.target.checked);
+        });
+        
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            sphere.setAttribute('sphere-color', '#3399ff');
+            sphere.setAttribute('wireframe-color', '#88ddff');
+            sphere.setAttribute('star-color', '#ffdd00');
+            sphere.setAttribute('background-color', '#0a0a1a');
+            sphere.setAttribute('wave-speed', '2');
+            sphere.setAttribute('show-stars', 'true');
+            sphere.setAttribute('show-wireframe', 'true');
+            
+            document.getElementById('sphereColor').value = '#3399ff';
+            document.getElementById('wireframeColor').value = '#88ddff';
+            document.getElementById('starColor').value = '#ffdd00';
+            document.getElementById('backgroundColor').value = '#0a0a1a';
+            document.getElementById('waveSpeed').value = 2;
+            document.getElementById('waveSpeedValue').textContent = '2.0';
+            document.getElementById('showStars').checked = true;
+            document.getElementById('showWireframe').checked = true;
+        });
+    </script>
+</body>
+</html>
