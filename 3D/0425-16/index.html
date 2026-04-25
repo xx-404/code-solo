@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 旋转相册</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>3D 旋转相册</h1>
+            <p class="subtitle">点击图片查看详情，拖拽旋转相册</p>
+        </header>
+        
+        <div class="gallery-container">
+            <canvas id="gallery"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button id="autoRotate">自动旋转: 开启</button>
+            <button id="speedUp">加速</button>
+            <button id="speedDown">减速</button>
+            <button id="reset">重置位置</button>
+        </div>
+        
+        <div class="image-modal" id="imageModal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <img id="modalImage" src="" alt="图片详情">
+                <h2 id="modalTitle"></h2>
+                <p id="modalDescription"></p>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

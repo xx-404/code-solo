@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 波浪地面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background: linear-gradient(to bottom, #0c1929, #152a47);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(15px);
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            min-width: 280px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .controls-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: rgba(255, 255, 255, 0.9);
+            letter-spacing: 1px;
+        }
+        
+        .control-group {
+            margin-bottom: 18px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .control-group label .value {
+            color: #4fc3f7;
+            font-weight: 500;
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.15);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(79, 195, 247, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(79, 195, 247, 0.6);
+        }
+        
+        .title {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            color: white;
+            font-size: 26px;
+            font-weight: 300;
+            letter-spacing: 3px;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .title .subtitle {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 2px;
+            margin-top: 5px;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 25px;
+            left: 30px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+        
+        .mode-selector {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .mode-selector label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .mode-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, rgba(79, 195, 247, 0.3), rgba(41, 182, 246, 0.2));
+            border-color: rgba(79, 195, 247, 0.5);
+            color: #4fc3f7;
+        }
+        
+        .mode-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <div class="title">
+            3D 波浪地面
+            <div class="subtitle">OCEAN WAVE SIMULATION</div>
+        </div>
+        
+        <div class="controls">
+            <div class="controls-title">参数控制</div>
+            
+            <div class="mode-selector">
+                <label>波浪模式</label>
+                <div class="mode-buttons">
+                    <button class="mode-btn active" data-mode="ocean">海洋</button>
+                    <button class="mode-btn" data-mode="lake">湖泊</button>
+                    <button class="mode-btn" data-mode="sand">沙丘</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    <span>波浪速度</span>
+                    <span class="value" id="speed-value">1.0</span>
+                </label>
+                <input type="range" id="speed" min="0" max="200" value="100">
+            </div>
+            <div class="control-group">
+                <label>
+                    <span>波浪高度</span>
+                    <span class="value" id="height-value">1.0</span>
+                </label>
+                <input type="range" id="height" min="10" max="200" value="100">
+            </div>
+            <div class="control-group">
+                <label>
+                    <span>波浪频率</span>
+                    <span class="value" id="frequency-value">1.0</span>
+                </label>
+                <input type="range" id="frequency" min="20" max="200" value="100">
+            </div>
+            <div class="control-group">
+                <label>
+                    <span>细节层次</span>
+                    <span class="value" id="detail-value">1.0</span>
+                </label>
+                <input type="range" id="detail" min="0" max="200" value="100">
+            </div>
+        </div>
+        
+        <div class="info">鼠标拖动旋转 | 滚轮缩放 | 右键平移</div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const vertexShader = `
+            uniform float uTime;
+            uniform float uSpeed;
+            uniform float uHeight;
+            uniform float uFrequency;
+            uniform float uDetail;
+            uniform float uMode;
+            
+            const int MAX_CLICKS = 10;
+            uniform vec2 uClickPositions[MAX_CLICKS];
+            uniform float uClickTimes[MAX_CLICKS];
+            uniform float uClickStrengths[MAX_CLICKS];
+            uniform int uClickCount;
+            
+            varying vec2 vUv;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying float vElevation;
+            varying float vNoise;
+            varying float vClickEffect;
+
+            vec3 mod289(vec3 x) {
+                return x - floor(x * (1.0 / 289.0)) * 289.0;
+            }
+            
+            vec4 mod289(vec4 x) {
+                return x - floor(x * (1.0 / 289.0)) * 289.0;
+            }
+            
+            vec4 permute(vec4 x) {
+                return mod289(((x * 34.0) + 1.0) * x);
+            }
+            
+            vec4 taylorInvSqrt(vec4 r) {
+                return 1.79284291400159 - 0.85373472095314 * r;
+            }
+            
+            float snoise(vec3 v) {
+                const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                
+                vec3 i = floor(v + dot(v, C.yyy));
+                vec3 x0 = v - i + dot(i, C.xxx);
+                
+                vec3 g = step(x0.yzx, x0.xyz);
+                vec3 l = 1.0 - g;
+                vec3 i1 = min(g.xyz, l.zxy);
+                vec3 i2 = max(g.xyz, l.zxy);
+                
+                vec3 x1 = x0 - i1 + C.xxx;
+                vec3 x2 = x0 - i2 + C.yyy;
+                vec3 x3 = x0 - D.yyy;
+                
+                i = mod289(i);
+                vec4 p = permute(permute(permute(
+                    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                    + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+                
+                float n_ = 0.142857142857;
+                vec3 ns = n_ * D.wyz - D.xzx;
+                
+                vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                
+                vec4 x_ = floor(j * ns.z);
+                vec4 y_ = floor(j - 7.0 * x_);
+                
+                vec4 x = x_ * ns.x + ns.yyyy;
+                vec4 y = y_ * ns.x + ns.yyyy;
+                vec4 h = 1.0 - abs(x) - abs(y);
+                
+                vec4 b0 = vec4(x.xy, y.xy);
+                vec4 b1 = vec4(x.zw, y.zw);
+                
+                vec4 s0 = floor(b0) * 2.0 + 1.0;
+                vec4 s1 = floor(b1) * 2.0 + 1.0;
+                vec4 sh = -step(h, vec4(0.0));
+                
+                vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+                vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+                
+                vec3 p0 = vec3(a0.xy, h.x);
+                vec3 p1 = vec3(a0.zw, h.y);
+                vec3 p2 = vec3(a1.xy, h.z);
+                vec3 p3 = vec3(a1.zw, h.w);
+                
+                vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+                p0 *= norm.x;
+                p1 *= norm.y;
+                p2 *= norm.z;
+                p3 *= norm.w;
+                
+                vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                m = m * m;
+                return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+            }
+
+            float fbm(vec3 p) {
+                float value = 0.0;
+                float amplitude = 0.5;
+                float frequency = 1.0;
+                
+                for(int i = 0; i < 6; i++) {
+                    value += amplitude * snoise(p * frequency);
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+                return value;
+            }
+
+            float clickWave(vec2 pos, vec2 clickPos, float clickTime, float strength) {
+                float dist = distance(pos, clickPos);
+                
+                float waveSpeed = 8.0;
+                float waveFreq = 2.0;
+                float maxTime = 3.0;
+                
+                if(clickTime <= 0.0 || clickTime > maxTime) return 0.0;
+                
+                float timeFactor = 1.0 - clickTime / maxTime;
+                timeFactor = smoothstep(0.0, 0.3, timeFactor) * smoothstep(1.0, 0.8, timeFactor);
+                
+                float wavePhase = dist * waveFreq - clickTime * waveSpeed;
+                float wave = sin(wavePhase);
+                
+                float rippleSize = clickTime * waveSpeed;
+                float envelope = exp(-dist * 0.15);
+                envelope *= smoothstep(rippleSize + 3.0, rippleSize - 1.0, dist);
+                
+                float centralBump = exp(-dist * dist * 0.02);
+                centralBump *= exp(-clickTime * clickTime * 2.0);
+                
+                float totalEffect = (wave * envelope * 0.5 + centralBump) * strength * timeFactor;
+                
+                return totalEffect;
+            }
+
+            float oceanWave(vec3 p) {
+                float time = uTime * uSpeed * 0.001;
+                float freq = uFrequency * 0.01;
+                float height = uHeight * 0.02;
+                float detail = uDetail * 0.01;
+                
+                float wave = 0.0;
+                
+                wave += sin(p.x * freq + time) * cos(p.y * freq * 0.8 + time * 0.7) * height;
+                wave += sin(p.x * freq * 1.5 + time * 1.2) * cos(p.y * freq * 1.2 + time * 0.5) * height * 0.5;
+                wave += sin(p.x * freq * 0.7 + time * 0.8) * cos(p.y * freq * 2.0 + time * 1.5) * height * 0.3;
+                
+                wave += sin(p.x * freq * 0.5 - p.y * freq * 0.3 + time * 0.6) * height * 0.4;
+                wave += sin(p.x * freq * 0.8 + p.y * freq * 0.5 + time * 0.9) * height * 0.3;
+                
+                float noise = fbm(vec3(p.x * 0.1 * detail, p.y * 0.1 * detail, time * 0.2));
+                wave += noise * height * 0.3;
+                
+                return wave;
+            }
+
+            float lakeWave(vec3 p) {
+                float time = uTime * uSpeed * 0.0005;
+                float freq = uFrequency * 0.015;
+                float height = uHeight * 0.01;
+                float detail = uDetail * 0.01;
+                
+                float wave = 0.0;
+                
+                float dist = length(p.xy);
+                float ripple = sin(dist * freq - time * 2.0) * exp(-dist * 0.02);
+                wave += ripple * height * 0.5;
+                
+                wave += sin(p.x * freq * 0.5 + time) * cos(p.y * freq * 0.5 + time * 0.8) * height;
+                wave += sin(p.x * freq * 0.8 + time * 1.3) * cos(p.y * freq * 0.6 + time * 0.6) * height * 0.4;
+                
+                float noise = fbm(vec3(p.x * 0.05 * detail, p.y * 0.05 * detail, time * 0.1));
+                wave += noise * height * 0.2;
+                
+                return wave;
+            }
+
+            float sandDune(vec3 p) {
+                float time = uTime * uSpeed * 0.0001;
+                float freq = uFrequency * 0.008;
+                float height = uHeight * 0.03;
+                float detail = uDetail * 0.01;
+                
+                float wave = 0.0;
+                
+                float windDir = sin(time * 0.1) * 0.3 + 0.7;
+                float windWave = sin(p.x * freq * windDir + p.y * freq * 0.3 + time) * height;
+                windWave *= 0.5 + 0.5 * sin(p.y * freq * 0.2 + time * 0.2);
+                wave += windWave;
+                
+                wave += sin(p.x * freq * 1.5 + p.y * freq * 0.5 + time * 0.3) * height * 0.5;
+                wave += sin(p.x * freq * 0.3 + p.y * freq * 1.2 + time * 0.5) * height * 0.4;
+                
+                float noise = fbm(vec3(p.x * 0.02 * detail, p.y * 0.02 * detail, time * 0.01));
+                wave += noise * height * 0.4;
+                
+                wave += snoise(vec3(p.x * 0.5 * detail, p.y * 0.5 * detail, time * 0.05)) * height * 0.1;
+                
+                return wave;
+            }
+
+            float getWave(vec3 p) {
+                if(uMode < 0.5) {
+                    return oceanWave(p);
+                } else if(uMode < 1.5) {
+                    return lakeWave(p);
+                } else {
+                    return sandDune(p);
+                }
+            }
+
+            float getClickEffect(vec2 pos) {
+                float total = 0.0;
+                
+                for(int i = 0; i < MAX_CLICKS; i++) {
+                    if(i >= uClickCount) break;
+                    
+                    float effect = clickWave(
+                        pos,
+                        uClickPositions[i],
+                        uClickTimes[i],
+                        uClickStrengths[i]
+                    );
+                    total += effect;
+                }
+                
+                return total;
+            }
+
+            void main() {
+                vUv = uv;
+                vPosition = position;
+                
+                vec3 pos = position;
+                
+                float delta = 0.1;
+                
+                float baseWave = getWave(pos);
+                float clickEffect = getClickEffect(pos.xy);
+                float elevation = baseWave + clickEffect;
+                
+                float baseWaveX = getWave(pos + vec3(delta, 0.0, 0.0));
+                float clickEffectX = getClickEffect((pos + vec3(delta, 0.0, 0.0)).xy);
+                float elevationX = baseWaveX + clickEffectX;
+                
+                float baseWaveY = getWave(pos + vec3(0.0, delta, 0.0));
+                float clickEffectY = getClickEffect((pos + vec3(0.0, delta, 0.0)).xy);
+                float elevationY = baseWaveY + clickEffectY;
+                
+                pos.z += elevation;
+                
+                vec3 tangentX = normalize(vec3(delta, 0.0, elevationX - elevation));
+                vec3 tangentY = normalize(vec3(0.0, delta, elevationY - elevation));
+                vec3 normal = normalize(cross(tangentY, tangentX));
+                
+                vNormal = normal;
+                vElevation = elevation;
+                vNoise = fbm(vec3(pos.x * 0.05, pos.y * 0.05, uTime * uSpeed * 0.0001));
+                vClickEffect = clickEffect;
+                
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            uniform float uTime;
+            uniform float uHeight;
+            uniform float uMode;
+            
+            varying vec2 vUv;
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying float vElevation;
+            varying float vNoise;
+
+            vec3 mod289(vec3 x) {
+                return x - floor(x * (1.0 / 289.0)) * 289.0;
+            }
+            
+            vec4 mod289(vec4 x) {
+                return x - floor(x * (1.0 / 289.0)) * 289.0;
+            }
+            
+            vec4 permute(vec4 x) {
+                return mod289(((x * 34.0) + 1.0) * x);
+            }
+            
+            vec4 taylorInvSqrt(vec4 r) {
+                return 1.79284291400159 - 0.85373472095314 * r;
+            }
+            
+            float snoise(vec3 v) {
+                const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                
+                vec3 i = floor(v + dot(v, C.yyy));
+                vec3 x0 = v - i + dot(i, C.xxx);
+                
+                vec3 g = step(x0.yzx, x0.xyz);
+                vec3 l = 1.0 - g;
+                vec3 i1 = min(g.xyz, l.zxy);
+                vec3 i2 = max(g.xyz, l.zxy);
+                
+                vec3 x1 = x0 - i1 + C.xxx;
+                vec3 x2 = x0 - i2 + C.yyy;
+                vec3 x3 = x0 - D.yyy;
+                
+                i = mod289(i);
+                vec4 p = permute(permute(permute(
+                    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                    + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+                
+                float n_ = 0.142857142857;
+                vec3 ns = n_ * D.wyz - D.xzx;
+                
+                vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                
+                vec4 x_ = floor(j * ns.z);
+                vec4 y_ = floor(j - 7.0 * x_);
+                
+                vec4 x = x_ * ns.x + ns.yyyy;
+                vec4 y = y_ * ns.x + ns.yyyy;
+                vec4 h = 1.0 - abs(x) - abs(y);
+                
+                vec4 b0 = vec4(x.xy, y.xy);
+                vec4 b1 = vec4(x.zw, y.zw);
+                
+                vec4 s0 = floor(b0) * 2.0 + 1.0;
+                vec4 s1 = floor(b1) * 2.0 + 1.0;
+                vec4 sh = -step(h, vec4(0.0));
+                
+                vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+                vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+                
+                vec3 p0 = vec3(a0.xy, h.x);
+                vec3 p1 = vec3(a0.zw, h.y);
+                vec3 p2 = vec3(a1.xy, h.z);
+                vec3 p3 = vec3(a1.zw, h.w);
+                
+                vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+                p0 *= norm.x;
+                p1 *= norm.y;
+                p2 *= norm.z;
+                p3 *= norm.w;
+                
+                vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                m = m * m;
+                return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+            }
+
+            float fbm(vec3 p) {
+                float value = 0.0;
+                float amplitude = 0.5;
+                float frequency = 1.0;
+                
+                for(int i = 0; i < 6; i++) {
+                    value += amplitude * snoise(p * frequency);
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+                return value;
+            }
+
+            float gridFactor(vec2 coord, float gridSize, float lineWidth) {
+                vec2 grid = abs(fract(coord / gridSize - 0.5) - 0.5);
+                vec2 gridLine = min(grid, lineWidth);
+                float line = min(gridLine.x, gridLine.y);
+                return 1.0 - smoothstep(0.0, lineWidth, line);
+            }
+
+            void main() {
+                float height = uHeight * 0.02;
+                float normalizeElevation = (vElevation + height) / (height * 2.0);
+                
+                vec3 deepColor, midColor, shallowColor, foamColor;
+                float foamThreshold;
+                
+                if(uMode < 0.5) {
+                    deepColor = vec3(0.02, 0.05, 0.12);
+                    midColor = vec3(0.05, 0.15, 0.3);
+                    shallowColor = vec3(0.1, 0.4, 0.6);
+                    foamColor = vec3(0.8, 0.95, 1.0);
+                    foamThreshold = 0.65;
+                } else if(uMode < 1.5) {
+                    deepColor = vec3(0.05, 0.1, 0.15);
+                    midColor = vec3(0.1, 0.25, 0.35);
+                    shallowColor = vec3(0.2, 0.5, 0.55);
+                    foamColor = vec3(0.9, 0.98, 1.0);
+                    foamThreshold = 0.7;
+                } else {
+                    deepColor = vec3(0.35, 0.25, 0.15);
+                    midColor = vec3(0.5, 0.4, 0.25);
+                    shallowColor = vec3(0.7, 0.55, 0.35);
+                    foamColor = vec3(0.9, 0.8, 0.6);
+                    foamThreshold = 0.75;
+                }
+                
+                vec3 color;
+                if(normalizeElevation < 0.3) {
+                    float t = normalizeElevation / 0.3;
+                    color = mix(shallowColor, midColor, t);
+                } else if(normalizeElevation < 0.6) {
+                    float t = (normalizeElevation - 0.3) / 0.3;
+                    color = mix(midColor, deepColor, t);
+                } else {
+                    float t = (normalizeElevation - 0.6) / 0.4;
+                    color = mix(deepColor, deepColor * 0.7, t);
+                }
+                
+                vec3 gridColorMajor = vec3(1.0, 1.0, 1.0);
+                vec3 gridColorMinor = vec3(0.85, 0.9, 0.95);
+                
+                float gridSizeMajor = 10.0;
+                float gridSizeMinor = 2.0;
+                float lineWidthMajor = 0.08;
+                float lineWidthMinor = 0.03;
+                
+                float gridMajor = gridFactor(vPosition.xy, gridSizeMajor, lineWidthMajor);
+                float gridMinor = gridFactor(vPosition.xy, gridSizeMinor, lineWidthMinor);
+                
+                float gridOpacityMajor = gridMajor * 0.5 + gridMinor * 0.25;
+                
+                vec3 gridFinalColor = mix(gridColorMinor, gridColorMajor, gridMajor);
+                color = mix(color, gridFinalColor, gridOpacityMajor * 0.2);
+                
+                vec3 lightDir1 = normalize(vec3(0.5, 0.8, 1.0));
+                vec3 lightDir2 = normalize(vec3(-0.3, 0.5, -0.8));
+                
+                float diffuse1 = max(dot(vNormal, lightDir1), 0.0);
+                float diffuse2 = max(dot(vNormal, lightDir2), 0.0) * 0.3;
+                
+                vec3 viewDir = normalize(cameraPosition - vPosition);
+                vec3 halfDir = normalize(lightDir1 + viewDir);
+                float specular = pow(max(dot(vNormal, halfDir), 0.0), 64.0);
+                
+                float specularMask = 1.0 - smoothstep(0.3, 0.7, normalizeElevation);
+                specular *= specularMask;
+                
+                float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 4.0);
+                
+                vec3 ambient = shallowColor * 0.3;
+                vec3 diffuse = color * (diffuse1 * 0.8 + diffuse2);
+                vec3 specularColor = foamColor * specular * 0.5;
+                vec3 fresnelColor = shallowColor * fresnel * 0.3;
+                
+                color = ambient + diffuse + specularColor + fresnelColor;
+                
+                float foam = smoothstep(foamThreshold + 0.05, foamThreshold - 0.05, normalizeElevation + vNoise * 0.15);
+                float foamDetail = fbm(vec3(vPosition.x * 0.5, vPosition.y * 0.5, uTime * 0.1));
+                foam *= smoothstep(0.3, 0.7, foamDetail);
+                color = mix(color, foamColor, foam * 0.4);
+                
+                float ss = pow(dot(vNormal, viewDir), 2.0);
+                color += shallowColor * ss * 0.15;
+                
+                color = pow(color, vec3(0.9));
+                
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        class WaveScene {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.parameters = {
+                    speed: 100,
+                    height: 100,
+                    frequency: 100,
+                    detail: 100,
+                    mode: 0
+                };
+                
+                this.MAX_CLICKS = 10;
+                this.clicks = [];
+                this.clickPositions = new Float32Array(this.MAX_CLICKS * 2);
+                this.clickTimes = new Float32Array(this.MAX_CLICKS);
+                this.clickStrengths = new Float32Array(this.MAX_CLICKS);
+                
+                for(let i = 0; i < this.MAX_CLICKS; i++) {
+                    this.clickPositions[i * 2] = 0;
+                    this.clickPositions[i * 2 + 1] = 0;
+                    this.clickTimes[i] = -1;
+                    this.clickStrengths[i] = 0;
+                }
+                
+                this.init();
+                this.createGround();
+                this.createLights();
+                this.createSky();
+                this.setupControls();
+                this.setupClickEvents();
+                this.animate();
+                this.handleResize();
+            }
+
+            init() {
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x0c1929, 0.008);
+                
+                this.camera = new THREE.PerspectiveCamera(
+                    55,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    500
+                );
+                this.camera.position.set(0, 8, 25);
+                this.camera.lookAt(0, 0, 0);
+                
+                this.renderer = new THREE.WebGLRenderer({ 
+                    antialias: true,
+                    alpha: true
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.0;
+                this.container.appendChild(this.renderer.domElement);
+                
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.03;
+                this.controls.minDistance = 5;
+                this.controls.maxDistance = 80;
+                this.controls.maxPolarAngle = Math.PI / 2.1;
+                this.controls.target.set(0, -1, 0);
+                
+                this.raycaster = new THREE.Raycaster();
+                this.pointer = new THREE.Vector2();
+                
+                this.clock = new THREE.Clock();
+            }
+
+            createSky() {
+                const skyGeometry = new THREE.SphereGeometry(200, 32, 32);
+                const skyMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        topColor: { value: new THREE.Color(0x0a1628) },
+                        bottomColor: { value: new THREE.Color(0x1a3a5a) },
+                        offset: { value: 10 },
+                        exponent: { value: 0.6 }
+                    },
+                    vertexShader: `
+                        varying vec3 vWorldPosition;
+                        void main() {
+                            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                            vWorldPosition = worldPosition.xyz;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform vec3 topColor;
+                        uniform vec3 bottomColor;
+                        uniform float offset;
+                        uniform float exponent;
+                        varying vec3 vWorldPosition;
+                        void main() {
+                            float h = normalize(vWorldPosition + offset).y;
+                            gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                        }
+                    `,
+                    side: THREE.BackSide
+                });
+                
+                const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+                this.scene.add(sky);
+            }
+
+            createGround() {
+                this.waveMaterial = new THREE.ShaderMaterial({
+                    vertexShader,
+                    fragmentShader,
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uSpeed: { value: this.parameters.speed },
+                        uHeight: { value: this.parameters.height },
+                        uFrequency: { value: this.parameters.frequency },
+                        uDetail: { value: this.parameters.detail },
+                        uMode: { value: this.parameters.mode },
+                        uClickPositions: { value: this.clickPositions },
+                        uClickTimes: { value: this.clickTimes },
+                        uClickStrengths: { value: this.clickStrengths },
+                        uClickCount: { value: 0 }
+                    },
+                    side: THREE.DoubleSide,
+                    wireframe: false
+                });
+
+                const geometry = new THREE.PlaneGeometry(150, 150, 256, 256);
+                geometry.rotateX(-Math.PI / 2);
+                
+                this.ground = new THREE.Mesh(geometry, this.waveMaterial);
+                this.scene.add(this.ground);
+            }
+
+            createLights() {
+                const ambientLight = new THREE.AmbientLight(0x406080, 0.4);
+                this.scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                directionalLight.position.set(20, 40, 30);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                this.scene.add(directionalLight);
+                
+                const fillLight = new THREE.DirectionalLight(0x4080c0, 0.3);
+                fillLight.position.set(-20, 10, -20);
+                this.scene.add(fillLight);
+                
+                const rimLight = new THREE.DirectionalLight(0x80c0ff, 0.2);
+                rimLight.position.set(0, 20, -30);
+                this.scene.add(rimLight);
+            }
+
+            setupControls() {
+                const speedSlider = document.getElementById('speed');
+                const heightSlider = document.getElementById('height');
+                const frequencySlider = document.getElementById('frequency');
+                const detailSlider = document.getElementById('detail');
+                
+                const speedValue = document.getElementById('speed-value');
+                const heightValue = document.getElementById('height-value');
+                const frequencyValue = document.getElementById('frequency-value');
+                const detailValue = document.getElementById('detail-value');
+                
+                const modeButtons = document.querySelectorAll('.mode-btn');
+                
+                modeButtons.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        modeButtons.forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        
+                        const mode = e.target.dataset.mode;
+                        if(mode === 'ocean') {
+                            this.parameters.mode = 0;
+                        } else if(mode === 'lake') {
+                            this.parameters.mode = 1;
+                        } else {
+                            this.parameters.mode = 2;
+                        }
+                        this.waveMaterial.uniforms.uMode.value = this.parameters.mode;
+                    });
+                });
+                
+                speedSlider.addEventListener('input', (e) => {
+                    this.parameters.speed = parseFloat(e.target.value);
+                    this.waveMaterial.uniforms.uSpeed.value = this.parameters.speed;
+                    speedValue.textContent = (this.parameters.speed / 100).toFixed(1);
+                });
+                
+                heightSlider.addEventListener('input', (e) => {
+                    this.parameters.height = parseFloat(e.target.value);
+                    this.waveMaterial.uniforms.uHeight.value = this.parameters.height;
+                    heightValue.textContent = (this.parameters.height / 100).toFixed(1);
+                });
+                
+                frequencySlider.addEventListener('input', (e) => {
+                    this.parameters.frequency = parseFloat(e.target.value);
+                    this.waveMaterial.uniforms.uFrequency.value = this.parameters.frequency;
+                    frequencyValue.textContent = (this.parameters.frequency / 100).toFixed(1);
+                });
+                
+                detailSlider.addEventListener('input', (e) => {
+                    this.parameters.detail = parseFloat(e.target.value);
+                    this.waveMaterial.uniforms.uDetail.value = this.parameters.detail;
+                    detailValue.textContent = (this.parameters.detail / 100).toFixed(1);
+                });
+            }
+
+            setupClickEvents() {
+                const canvas = this.renderer.domElement;
+                
+                canvas.addEventListener('pointerdown', (event) => {
+                    if(event.button !== 0) return;
+                    
+                    const rect = canvas.getBoundingClientRect();
+                    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                    
+                    this.raycaster.setFromCamera(this.pointer, this.camera);
+                    const intersects = this.raycaster.intersectObject(this.ground);
+                    
+                    if(intersects.length > 0) {
+                        const point = intersects[0].point;
+                        this.addClick(point.x, point.y);
+                    }
+                });
+            }
+
+            addClick(x, y) {
+                const currentTime = this.clock.getElapsedTime();
+                
+                this.clicks.push({
+                    x: x,
+                    y: y,
+                    startTime: currentTime,
+                    strength: 2.0 + Math.random() * 0.5
+                });
+                
+                if(this.clicks.length > this.MAX_CLICKS) {
+                    this.clicks.shift();
+                }
+                
+                this.updateClickUniforms(currentTime);
+            }
+
+            updateClickUniforms(currentTime) {
+                for(let i = 0; i < this.MAX_CLICKS; i++) {
+                    if(i < this.clicks.length) {
+                        const click = this.clicks[i];
+                        const elapsed = currentTime - click.startTime;
+                        
+                        this.clickPositions[i * 2] = click.x;
+                        this.clickPositions[i * 2 + 1] = click.y;
+                        this.clickTimes[i] = elapsed;
+                        this.clickStrengths[i] = click.strength;
+                    } else {
+                        this.clickTimes[i] = -1;
+                    }
+                }
+                
+                this.waveMaterial.uniforms.uClickCount.value = Math.min(this.clicks.length, this.MAX_CLICKS);
+                this.waveMaterial.uniforms.uClickPositions.needsUpdate = true;
+                this.waveMaterial.uniforms.uClickTimes.needsUpdate = true;
+                this.waveMaterial.uniforms.uClickStrengths.needsUpdate = true;
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                const elapsedTime = this.clock.getElapsedTime();
+                this.waveMaterial.uniforms.uTime.value = elapsedTime;
+                
+                if(this.clicks.length > 0) {
+                    this.clicks = this.clicks.filter(click => {
+                        return (elapsedTime - click.startTime) < 3.0;
+                    });
+                    this.updateClickUniforms(elapsedTime);
+                }
+                
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            handleResize() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+        }
+
+        new WaveScene();
+    </script>
+</body>
+</html>

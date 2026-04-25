@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 玻璃球体折射效果</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+            cursor: pointer;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">玻璃球体折射效果 - 鼠标拖动旋转，滚轮缩放，点击球体使其破裂</div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+    <script>
+        // ============================================
+        // 工具函数模块
+        // ============================================
+        const TextureUtils = {
+            createCheckerboardTexture: function(options = {}) {
+                const {
+                    size = 1024,
+                    tileSize = 128,
+                    color1 = '#444444',
+                    color2 = '#888888',
+                    repeatX = 4,
+                    repeatY = 4
+                } = options;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const context = canvas.getContext('2d');
+                
+                for (let y = 0; y < size; y += tileSize) {
+                    for (let x = 0; x < size; x += tileSize) {
+                        const isEven = ((x / tileSize) + (y / tileSize)) % 2 === 0;
+                        context.fillStyle = isEven ? color1 : color2;
+                        context.fillRect(x, y, tileSize, tileSize);
+                    }
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(repeatX, repeatY);
+                return texture;
+            },
+
+            createEnvironmentMap: function(options = {}) {
+                const {
+                    size = 512,
+                    colors = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#44ffff', '#ff44ff'],
+                    alpha = 0.2
+                } = options;
+
+                const images = [];
+                for (let i = 0; i < 6; i++) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    
+                    ctx.fillStyle = colors[i];
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    const ts = 64;
+                    for (let y = 0; y < size; y += ts) {
+                        for (let x = 0; x < size; x += ts) {
+                            const isEven = ((x / ts) + (y / ts)) % 2 === 0;
+                            ctx.fillStyle = isEven 
+                                ? `rgba(255, 255, 255, ${alpha})` 
+                                : `rgba(0, 0, 0, ${alpha})`;
+                            ctx.fillRect(x, y, ts, ts);
+                        }
+                    }
+                    
+                    images.push(canvas);
+                }
+                
+                const cubeTexture = new THREE.CubeTexture(images);
+                cubeTexture.needsUpdate = true;
+                return cubeTexture;
+            }
+        };
+
+        // ============================================
+        // 棋盘格背景类
+        // ============================================
+        class CheckerboardBackground {
+            constructor(options = {}) {
+                const {
+                    size = 30,
+                    textureOptions = {},
+                    rotationSpeed = { x: 0.001, y: 0.001, z: 0 }
+                } = options;
+
+                this.size = size;
+                this.rotationSpeed = rotationSpeed;
+                
+                this.texture = TextureUtils.createCheckerboardTexture(textureOptions);
+                this.material = new THREE.MeshStandardMaterial({
+                    map: this.texture,
+                    side: THREE.BackSide
+                });
+                
+                this.geometry = new THREE.BoxGeometry(size, size, size);
+                this.mesh = new THREE.Mesh(this.geometry, this.material);
+            }
+
+            getMesh() {
+                return this.mesh;
+            }
+
+            getTexture() {
+                return this.texture;
+            }
+
+            update() {
+                this.mesh.rotation.x += this.rotationSpeed.x;
+                this.mesh.rotation.y += this.rotationSpeed.y;
+                this.mesh.rotation.z += this.rotationSpeed.z;
+            }
+
+            setRotationSpeed(x, y, z) {
+                this.rotationSpeed = { x, y, z };
+            }
+
+            dispose() {
+                this.geometry.dispose();
+                this.material.dispose();
+                this.texture.dispose();
+            }
+        }
+
+        // ============================================
+        // 金属立方体类
+        // ============================================
+        class MetalCube {
+            constructor(scene, environmentMap, options = {}) {
+                const {
+                    size = 0.8,
+                    color = 0xffd700,
+                    metalness = 1.0,
+                    roughness = 0.1,
+                    rotationSpeed = { x: 0.02, y: 0.025, z: 0.015 },
+                    lightIntensity = 1,
+                    lightDistance = 3,
+                    moveRadius = 0.3,
+                    moveSpeeds = { x: 1, y: 0.7, z: 1.1 }
+                } = options;
+
+                this.scene = scene;
+                this.environmentMap = environmentMap;
+                this.size = size;
+                this.rotationSpeed = rotationSpeed;
+                this.moveRadius = moveRadius;
+                this.moveSpeeds = moveSpeeds;
+                
+                this.broken = false;
+                this.velocity = null;
+                this.gravity = -0.075;
+                this.floorY = -10;
+
+                this._createGeometry();
+                this._createMaterial(color, metalness, roughness);
+                this._createMesh();
+                this._createLight(color, lightIntensity, lightDistance);
+            }
+
+            _createGeometry() {
+                this.geometry = new THREE.BoxGeometry(this.size, this.size, this.size);
+            }
+
+            _createMaterial(color, metalness, roughness) {
+                this.material = new THREE.MeshStandardMaterial({
+                    color: color,
+                    metalness: metalness,
+                    roughness: roughness,
+                    envMap: this.environmentMap,
+                    envMapIntensity: 1.0
+                });
+            }
+
+            _createMesh() {
+                this.mesh = new THREE.Mesh(this.geometry, this.material);
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
+                this.scene.add(this.mesh);
+            }
+
+            _createLight(color, intensity, distance) {
+                this.light = new THREE.PointLight(color, intensity, distance);
+                this.light.position.copy(this.mesh.position);
+                this.scene.add(this.light);
+            }
+
+            getMesh() {
+                return this.mesh;
+            }
+
+            getLight() {
+                return this.light;
+            }
+
+            setVelocity(velocity) {
+                this.velocity = velocity.clone();
+                this.broken = true;
+            }
+
+            update(time) {
+                if (!this.broken) {
+                    this._updateRotation();
+                    this._updatePosition(time);
+                } else {
+                    this._updatePhysics();
+                    this._updateRotation();
+                }
+                this.light.position.copy(this.mesh.position);
+            }
+
+            _updateRotation() {
+                this.mesh.rotation.x += this.rotationSpeed.x;
+                this.mesh.rotation.y += this.rotationSpeed.y;
+                this.mesh.rotation.z += this.rotationSpeed.z;
+            }
+
+            _updatePosition(time) {
+                this.mesh.position.x = Math.sin(time * this.moveSpeeds.x) * this.moveRadius;
+                this.mesh.position.y = Math.cos(time * this.moveSpeeds.y) * this.moveRadius;
+                this.mesh.position.z = Math.sin(time * this.moveSpeeds.z) * this.moveRadius;
+            }
+
+            _updatePhysics() {
+                if (!this.velocity) return;
+
+                this.velocity.y += this.gravity;
+                this.mesh.position.add(this.velocity.clone().multiplyScalar(0.016));
+
+                const groundY = this.floorY + this.size / 2;
+                if (this.mesh.position.y < groundY) {
+                    this.mesh.position.y = groundY;
+                    this.velocity.y *= -0.6;
+                    this.velocity.x *= 0.9;
+                    this.velocity.z *= 0.9;
+                }
+            }
+
+            setRotationSpeed(x, y, z) {
+                this.rotationSpeed = { x, y, z };
+            }
+
+            dispose() {
+                this.scene.remove(this.mesh);
+                this.scene.remove(this.light);
+                this.geometry.dispose();
+                this.material.dispose();
+            }
+        }
+
+        // ============================================
+        // 玻璃球体类（含破裂效果）
+        // ============================================
+        class GlassSphere {
+            constructor(scene, environmentMap, options = {}) {
+                const {
+                    radius = 1.5,
+                    widthSegments = 64,
+                    heightSegments = 64,
+                    color = 0xffdddd,
+                    transmission = 1.0,
+                    thickness = 0.5,
+                    ior = 1.5,
+                    rotationSpeed = { x: 0.002, y: 0.003, z: 0 },
+                    fragmentCount = 200,
+                    onBreak = null
+                } = options;
+
+                this.scene = scene;
+                this.environmentMap = environmentMap;
+                this.radius = radius;
+                this.widthSegments = widthSegments;
+                this.heightSegments = heightSegments;
+                this.rotationSpeed = rotationSpeed;
+                this.fragmentCount = fragmentCount;
+                this.onBreak = onBreak;
+
+                this.broken = false;
+                this.fragments = [];
+                this.gravity = -0.15;
+                this.floorY = -10;
+
+                this._createMaterial(color, transmission, thickness, ior);
+                this._createGeometry();
+                this._createMesh();
+            }
+
+            _createMaterial(color, transmission, thickness, ior) {
+                this.material = new THREE.MeshPhysicalMaterial({
+                    color: color,
+                    metalness: 0,
+                    roughness: 0,
+                    transmission: transmission,
+                    thickness: thickness,
+                    ior: ior,
+                    envMap: this.environmentMap,
+                    envMapIntensity: 1.0,
+                    transparent: true,
+                    opacity: 1.0,
+                    specularIntensity: 1.0,
+                    specularColor: 0xffffff,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.1
+                });
+            }
+
+            _createGeometry() {
+                this.geometry = new THREE.SphereGeometry(
+                    this.radius, 
+                    this.widthSegments, 
+                    this.heightSegments
+                );
+            }
+
+            _createMesh() {
+                this.mesh = new THREE.Mesh(this.geometry, this.material);
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
+                this.scene.add(this.mesh);
+            }
+
+            getMesh() {
+                return this.mesh;
+            }
+
+            isBroken() {
+                return this.broken;
+            }
+
+            breakSphere() {
+                if (this.broken) return false;
+
+                this.broken = true;
+                this.mesh.visible = false;
+                this._createFragments();
+
+                if (this.onBreak) {
+                    this.onBreak();
+                }
+
+                return true;
+            }
+
+            _createFragments() {
+                const fragmentMaterial = new THREE.MeshPhysicalMaterial({
+                    color: this.material.color.getHex(),
+                    metalness: 0,
+                    roughness: 0.2,
+                    transmission: 0.8,
+                    thickness: 0.3,
+                    ior: this.material.ior,
+                    envMap: this.environmentMap,
+                    envMapIntensity: 1.0,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                for (let i = 0; i < this.fragmentCount; i++) {
+                    const size = Math.random() * 0.3 + 0.05;
+                    const shapeType = Math.floor(Math.random() * 3);
+                    
+                    let fragmentGeometry;
+                    if (shapeType === 0) {
+                        fragmentGeometry = new THREE.TetrahedronGeometry(size, 0);
+                    } else if (shapeType === 1) {
+                        fragmentGeometry = new THREE.TetrahedronGeometry(size, 0);
+                        const vertices = fragmentGeometry.attributes.position;
+                        for (let j = 0; j < vertices.count; j++) {
+                            vertices.setX(j, vertices.getX(j) + (Math.random() - 0.5) * 0.1);
+                            vertices.setY(j, vertices.getY(j) + (Math.random() - 0.5) * 0.1);
+                            vertices.setZ(j, vertices.getZ(j) + (Math.random() - 0.5) * 0.1);
+                        }
+                        fragmentGeometry.computeVertexNormals();
+                    } else {
+                        fragmentGeometry = new THREE.BoxGeometry(size * 1.5, size * 0.3, size);
+                    }
+
+                    const fragment = new THREE.Mesh(fragmentGeometry, fragmentMaterial);
+                    
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.random() * Math.PI;
+                    const radius = this.radius * (0.8 + Math.random() * 0.4);
+                    
+                    fragment.position.x = radius * Math.sin(phi) * Math.cos(theta);
+                    fragment.position.y = radius * Math.cos(phi);
+                    fragment.position.z = radius * Math.sin(phi) * Math.sin(theta);
+                    
+                    fragment.rotation.x = Math.random() * Math.PI;
+                    fragment.rotation.y = Math.random() * Math.PI;
+                    fragment.rotation.z = Math.random() * Math.PI;
+                    
+                    fragment.userData = {
+                        velocity: new THREE.Vector3(
+                            (Math.random() - 0.5) * 8 + fragment.position.x * 2,
+                            (Math.random() - 0.5) * 8 + Math.abs(fragment.position.y) * 3,
+                            (Math.random() - 0.5) * 8 + fragment.position.z * 2
+                        ),
+                        rotationVelocity: new THREE.Vector3(
+                            (Math.random() - 0.5) * 0.5,
+                            (Math.random() - 0.5) * 0.5,
+                            (Math.random() - 0.5) * 0.5
+                        ),
+                        lifetime: Math.random() * 3 + 4,
+                        age: 0,
+                        originalOpacity: 0.9,
+                        geometry: fragmentGeometry
+                    };
+                    
+                    this.scene.add(fragment);
+                    this.fragments.push(fragment);
+                }
+            }
+
+            update() {
+                if (!this.broken) {
+                    this._updateRotation();
+                } else {
+                    this._updateFragments();
+                }
+            }
+
+            _updateRotation() {
+                this.mesh.rotation.x += this.rotationSpeed.x;
+                this.mesh.rotation.y += this.rotationSpeed.y;
+                this.mesh.rotation.z += this.rotationSpeed.z;
+            }
+
+            _updateFragments() {
+                for (let i = this.fragments.length - 1; i >= 0; i--) {
+                    const fragment = this.fragments[i];
+                    const userData = fragment.userData;
+                    
+                    userData.age += 0.016;
+                    
+                    userData.velocity.y += this.gravity;
+                    fragment.position.add(userData.velocity.clone().multiplyScalar(0.016));
+                    
+                    fragment.rotation.x += userData.rotationVelocity.x;
+                    fragment.rotation.y += userData.rotationVelocity.y;
+                    fragment.rotation.z += userData.rotationVelocity.z;
+                    
+                    if (fragment.position.y < this.floorY) {
+                        fragment.position.y = this.floorY;
+                        userData.velocity.y *= -0.5;
+                        userData.velocity.x *= 0.8;
+                        userData.velocity.z *= 0.8;
+                        userData.rotationVelocity.multiplyScalar(0.9);
+                    }
+                    
+                    if (userData.age > userData.lifetime - 1) {
+                        const fadeProgress = (userData.age - (userData.lifetime - 1)) / 1;
+                        fragment.material.opacity = userData.originalOpacity * (1 - fadeProgress);
+                    }
+                    
+                    if (userData.age > userData.lifetime) {
+                        this.scene.remove(fragment);
+                        userData.geometry.dispose();
+                        this.fragments.splice(i, 1);
+                    }
+                }
+            }
+
+            setRotationSpeed(x, y, z) {
+                this.rotationSpeed = { x, y, z };
+            }
+
+            setOnBreakCallback(callback) {
+                this.onBreak = callback;
+            }
+
+            dispose() {
+                this.scene.remove(this.mesh);
+                this.fragments.forEach(fragment => {
+                    this.scene.remove(fragment);
+                    fragment.userData.geometry.dispose();
+                });
+                this.fragments = [];
+                this.geometry.dispose();
+                this.material.dispose();
+            }
+        }
+
+        // ============================================
+        // 主应用类
+        // ============================================
+        class GlassSphereApp {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.raycaster = null;
+                this.mouse = null;
+                
+                this.background = null;
+                this.glassSphere = null;
+                this.metalCube = null;
+                
+                this.time = 0;
+                this.isDragging = false;
+                this.previousMousePosition = { x: 0, y: 0 };
+                this.cameraAngle = { theta: 0, phi: Math.PI / 4 };
+                this.cameraDistance = 5;
+
+                this._init();
+            }
+
+            _init() {
+                this._createScene();
+                this._createCamera();
+                this._createRenderer();
+                this._createLights();
+                this._createEnvironment();
+                this._createObjects();
+                this._setupControls();
+                this._setupEventListeners();
+                this._startAnimation();
+            }
+
+            _createScene() {
+                this.scene = new THREE.Scene();
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+            }
+
+            _createCamera() {
+                this.camera = new THREE.PerspectiveCamera(
+                    75, 
+                    window.innerWidth / window.innerHeight, 
+                    0.1, 
+                    1000
+                );
+                this._updateCameraPosition();
+            }
+
+            _createRenderer() {
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+            }
+
+            _createLights() {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                this.scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+                directionalLight.position.set(5, 5, 5);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                this.scene.add(directionalLight);
+
+                const pointLight1 = new THREE.PointLight(0xffffff, 1.0, 20);
+                pointLight1.position.set(-5, 5, -5);
+                this.scene.add(pointLight1);
+
+                const pointLight2 = new THREE.PointLight(0xffffff, 0.8, 20);
+                pointLight2.position.set(5, -5, 5);
+                this.scene.add(pointLight2);
+            }
+
+            _createEnvironment() {
+                const environmentMap = TextureUtils.createEnvironmentMap();
+                this.scene.environment = environmentMap;
+
+                this.background = new CheckerboardBackground({
+                    size: 30,
+                    rotationSpeed: { x: 0.001, y: 0.001, z: 0 }
+                });
+                this.scene.add(this.background.getMesh());
+                this.scene.background = this.background.getTexture();
+
+                this.environmentMap = environmentMap;
+            }
+
+            _createObjects() {
+                this.glassSphere = new GlassSphere(this.scene, this.environmentMap, {
+                    radius: 1.5,
+                    color: 0xffdddd,
+                    rotationSpeed: { x: 0.002, y: 0.003, z: 0 },
+                    fragmentCount: 200
+                });
+
+                this.metalCube = new MetalCube(this.scene, this.environmentMap, {
+                    size: 0.8,
+                    color: 0xffd700,
+                    rotationSpeed: { x: 0.02, y: 0.025, z: 0.015 }
+                });
+
+                this.glassSphere.setOnBreakCallback(() => {
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 3,
+                        (Math.random() - 0.5) * 3 + 2,
+                        (Math.random() - 0.5) * 3
+                    );
+                    this.metalCube.setVelocity(velocity);
+                });
+            }
+
+            _setupControls() {
+                document.addEventListener('mousedown', (e) => {
+                    this.isDragging = true;
+                    this.previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (!this.isDragging) return;
+                    
+                    const deltaX = e.clientX - this.previousMousePosition.x;
+                    const deltaY = e.clientY - this.previousMousePosition.y;
+                    
+                    this.cameraAngle.theta -= deltaX * 0.01;
+                    this.cameraAngle.phi -= deltaY * 0.01;
+                    
+                    this.cameraAngle.phi = Math.max(0.1, Math.min(Math.PI - 0.1, this.cameraAngle.phi));
+                    
+                    this._updateCameraPosition();
+                    this.previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                document.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                });
+
+                document.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    this.cameraDistance += e.deltaY * 0.01;
+                    this.cameraDistance = Math.max(2, Math.min(20, this.cameraDistance));
+                    this._updateCameraPosition();
+                });
+            }
+
+            _setupEventListeners() {
+                document.addEventListener('click', (e) => {
+                    if (this.isDragging) return;
+                    this._handleClick(e);
+                });
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            _handleClick(event) {
+                if (this.glassSphere.isBroken()) return;
+
+                this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObject(this.glassSphere.getMesh());
+
+                if (intersects.length > 0) {
+                    this.glassSphere.breakSphere();
+                }
+            }
+
+            _updateCameraPosition() {
+                this.camera.position.x = this.cameraDistance * 
+                    Math.sin(this.cameraAngle.phi) * Math.cos(this.cameraAngle.theta);
+                this.camera.position.y = this.cameraDistance * 
+                    Math.cos(this.cameraAngle.phi);
+                this.camera.position.z = this.cameraDistance * 
+                    Math.sin(this.cameraAngle.phi) * Math.sin(this.cameraAngle.theta);
+                this.camera.lookAt(0, 0, 0);
+            }
+
+            _startAnimation() {
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    
+                    this.time += 0.01;
+                    
+                    this.background.update();
+                    this.glassSphere.update();
+                    this.metalCube.update(this.time);
+                    
+                    this.renderer.render(this.scene, this.camera);
+                };
+
+                animate();
+            }
+
+            getScene() { return this.scene; }
+            getCamera() { return this.camera; }
+            getRenderer() { return this.renderer; }
+            getGlassSphere() { return this.glassSphere; }
+            getMetalCube() { return this.metalCube; }
+            getBackground() { return this.background; }
+        }
+
+        // ============================================
+        // 初始化应用
+        // ============================================
+        const app = new GlassSphereApp();
+    </script>
+</body>
+</html>

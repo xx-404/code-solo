@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D卡片墙</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .container {
+            perspective: 1500px;
+            perspective-origin: center center;
+        }
+
+        .card-wall {
+            width: 90vw;
+            height: 80vh;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 20px;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
+        }
+
+        .card {
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s ease;
+            cursor: pointer;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.6s ease;
+            border-radius: 15px;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.3),
+                0 0 30px rgba(102, 126, 234, 0.2);
+            overflow: hidden;
+        }
+
+        .card-front {
+            background: linear-gradient(145deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .card-front::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                transparent 50%,
+                rgba(0, 0, 0, 0.1) 100%
+            );
+            pointer-events: none;
+        }
+
+        .card-back {
+            background: linear-gradient(145deg, #2c3e50 0%, #1a252f 100%);
+            transform: rotateY(180deg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card-back::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.05) 0%,
+                transparent 50%,
+                rgba(0, 0, 0, 0.1) 100%
+            );
+            pointer-events: none;
+        }
+
+        .card-back-content {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            transform: translateZ(50px);
+        }
+
+        .card-back-title {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .card-back-text {
+            font-size: 0.85rem;
+            opacity: 0.6;
+        }
+
+        .card-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) translateZ(50px);
+            text-align: center;
+            color: white;
+            pointer-events: none;
+        }
+
+        .card-number {
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        .card:hover .card-inner {
+            transform: translateZ(30px);
+        }
+
+        .card.flipped:hover .card-inner {
+            transform: rotateY(180deg) translateZ(30px);
+        }
+
+
+
+        .title {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 0 2px 20px rgba(102, 126, 234, 0.5);
+            z-index: 100;
+            letter-spacing: 5px;
+        }
+
+        .hint {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            z-index: 100;
+        }
+
+        .controls {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .control-group input {
+            width: 60px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .control-group input:focus {
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+        }
+
+        .control-group input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #generateBtn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #generateBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        #generateBtn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="title">3D CARD WALL</div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="rows">行数：</label>
+            <input type="number" id="rows" min="1" max="10" value="4">
+        </div>
+        <div class="control-group">
+            <label for="cols">列数：</label>
+            <input type="number" id="cols" min="1" max="10" value="6">
+        </div>
+        <button id="generateBtn">生成卡片墙</button>
+    </div>
+    
+    <div class="container">
+        <div class="card-wall" id="cardWall">
+        </div>
+    </div>
+
+    <div class="hint">移动鼠标查看3D效果 | 点击卡片翻转 | 悬停卡片凸出</div>
+
+    <script>
+        const cardWall = document.getElementById('cardWall');
+        const rowsInput = document.getElementById('rows');
+        const colsInput = document.getElementById('cols');
+        const generateBtn = document.getElementById('generateBtn');
+
+        // 当前的行数和列数
+        let currentRows = 4;
+        let currentCols = 6;
+
+        const titles = ['探索', '发现', '创造', '分享', '学习', '成长',
+                        '梦想', '未来', '科技', '艺术', '生活', '旅行',
+                        '音乐', '电影', '阅读', '写作', '运动', '美食',
+                        '自然', '城市', '星空', '海洋', '森林', '沙漠',
+                        '阳光', '月光', '星光', '火光', '电光', '水光',
+                        '山光', '云光', '风光', '时光', '目光', '灵光',
+                        '曙光', '暮光', '晨光', '夜光', '霞光', '极光',
+                        '华光', '荣光', '辉光', '闪光', '亮光', '柔光'];
+        
+        const backTitles = ['背面', '反转', '隐藏', '秘密', '深层', '内观',
+                           '背后', '无形', '未知', '神秘', '暗面', '幕后',
+                           '反面', '无形', '内核', '本质', '潜能', '精髓',
+                           '深处', '暗处', '远方', '彼岸', '尽头', '终点',
+                           '底层', '内层', '暗层', '密层', '深层', '隐层',
+                           '秘层', '内层', '核心', '中心', '内部', '深处',
+                           '暗处', '角落', '边缘', '边界', '极限', '终极',
+                           '最后', '最终', '结局', '结论', '终点', '尽头'];
+
+        // 预设的好看渐变色库（50种不同渐变）
+        const gradients = [
+            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+            'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+            'linear-gradient(135deg, #fecfef 0%, #fecfef 100%)',
+            'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)',
+            'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+            'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
+            'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)',
+            'linear-gradient(135deg, #fddb92 0%, #d1fdff 100%)',
+            'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)',
+            'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
+            'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)',
+            'linear-gradient(135deg, #b721ff 0%, #21d4fd 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #5ee7df 0%, #b490ca 100%)',
+            'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
+            'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)',
+            'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)',
+            'linear-gradient(135deg, #f9d423 0%, #ff4e50 100%)',
+            'linear-gradient(135deg, #e9defa 0%, #fbfcdb 100%)',
+            'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)',
+            'linear-gradient(135deg, #c6ffdd 0%, #fbd786 100%)',
+            'linear-gradient(135deg, #f7797d 0%, #FBD786 100%)',
+            'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+            'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+            'linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%)',
+            'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
+            'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
+            'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)',
+            'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)',
+            'linear-gradient(135deg, #f5576c 0%, #F093FB 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+            'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)',
+            'linear-gradient(135deg, #b721ff 0%, #21d4fd 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #5ee7df 0%, #b490ca 100%)',
+            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)'
+        ];
+
+        // 背面渐变颜色（较深色系）
+        const backGradients = [
+            'linear-gradient(135deg, #2c3e50 0%, #1a252f 100%)',
+            'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            'linear-gradient(135deg, #0f0c29 0%, #302b63 100%)',
+            'linear-gradient(135deg, #3a1c71 0%, #1f1c2c 100%)',
+            'linear-gradient(135deg, #000000 0%, #434343 100%)',
+            'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            'linear-gradient(135deg, #232526 0%, #414345 100%)',
+            'linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 100%)'
+        ];
+
+        // 打乱渐变颜色顺序，让卡片颜色随机分布
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        // 生成卡片墙
+        function generateCardWall(rows, cols) {
+            currentRows = rows;
+            currentCols = cols;
+            
+            // 清空现有卡片
+            cardWall.innerHTML = '';
+            
+            // 更新grid布局
+            cardWall.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            cardWall.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            
+            // 打乱颜色
+            const shuffledGradients = shuffleArray(gradients);
+            
+            // 创建卡片
+            const totalCards = rows * cols;
+            for (let i = 0; i < totalCards; i++) {
+                const card = document.createElement('div');
+                card.className = 'card';
+                
+                // 选择正面渐变（循环使用颜色库）
+                const frontGradient = shuffledGradients[i % shuffledGradients.length];
+                // 选择背面渐变（随机选一个深色系）
+                const backGradient = backGradients[Math.floor(Math.random() * backGradients.length)];
+                
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front" style="background: ${frontGradient};">
+                            <div class="card-content">
+                                <div class="card-number">${String(i + 1).padStart(2, '0')}</div>
+                                <div class="card-title">${titles[i % titles.length]}</div>
+                            </div>
+                        </div>
+                        <div class="card-back" style="background: ${backGradient};">
+                            <div class="card-back-content">
+                                <div class="card-back-title">${backTitles[i % backTitles.length]}</div>
+                                <div class="card-back-text">点击翻转回来</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // 点击翻转事件
+                card.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    card.classList.toggle('flipped');
+                });
+                
+                cardWall.appendChild(card);
+            }
+            
+            // 初始化卡片深度
+            initCardDepths();
+        }
+
+        // 初始化卡片深度
+        function initCardDepths() {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                const row = Math.floor(index / currentCols);
+                const depth = (currentRows - 1 - row) * 30;
+                card.style.transform = `translateZ(${depth}px)`;
+            });
+        }
+
+        // 鼠标移动3D效果
+        document.addEventListener('mousemove', (e) => {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            
+            const mouseX = (e.clientX - centerX) / centerX;
+            const mouseY = (e.clientY - centerY) / centerY;
+            
+            const rotateY = mouseX * 15;
+            const rotateX = -mouseY * 15;
+            
+            cardWall.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            
+            // 给每张卡片添加不同的3D深度效果
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                const row = Math.floor(index / currentCols);
+                const col = index % currentCols;
+                
+                const depth = (currentRows - 1 - row) * 30;
+                const xOffset = (col - (currentCols - 1) / 2) * 10 * mouseX;
+                const yOffset = (row - (currentRows - 1) / 2) * 10 * mouseY;
+                
+                card.style.transform = `translateZ(${depth}px) translateX(${xOffset}px) translateY(${yOffset}px)`;
+            });
+        });
+
+        // 重置效果
+        document.addEventListener('mouseleave', () => {
+            cardWall.style.transform = 'rotateX(0) rotateY(0)';
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                const row = Math.floor(index / currentCols);
+                const depth = (currentRows - 1 - row) * 30;
+                card.style.transform = `translateZ(${depth}px)`;
+            });
+        });
+
+        // 生成按钮点击事件
+        generateBtn.addEventListener('click', () => {
+            let rows = parseInt(rowsInput.value) || 4;
+            let cols = parseInt(colsInput.value) || 6;
+            
+            // 限制范围
+            rows = Math.max(1, Math.min(10, rows));
+            cols = Math.max(1, Math.min(10, cols));
+            
+            // 更新输入框显示
+            rowsInput.value = rows;
+            colsInput.value = cols;
+            
+            // 生成新的卡片墙
+            generateCardWall(rows, cols);
+        });
+
+        // 回车键触发生成
+        rowsInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                generateBtn.click();
+            }
+        });
+
+        colsInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                generateBtn.click();
+            }
+        });
+
+        // 初始化生成卡片墙
+        generateCardWall(currentRows, currentCols);
+    </script>
+</body>
+</html>

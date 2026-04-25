@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 粒子文字效果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 2rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        
+        canvas {
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(100, 100, 255, 0.3);
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .control-group {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        input[type="text"] {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: background 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        input[type="range"] {
+            width: 100px;
+            cursor: pointer;
+        }
+        
+        input[type="color"] {
+            width: 40px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+            background: transparent;
+        }
+        
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        
+        input[type="color"]::-webkit-color-swatch {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        
+        .preset-colors {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        .preset-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            padding: 0;
+        }
+        
+        .preset-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .info {
+            margin-top: 15px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>3D 粒子文字效果</h1>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>文字:</label>
+            <input type="text" id="textInput" value="你好世界" maxlength="8">
+        </div>
+        <div class="control-group">
+            <label>旋转速度:</label>
+            <input type="range" id="speedRange" min="0" max="5" step="0.1" value="1">
+        </div>
+        <div class="control-group">
+            <label>粒子大小:</label>
+            <input type="range" id="sizeRange" min="1" max="10" step="1" value="4">
+        </div>
+        <div class="control-group">
+            <label>粒子密度:</label>
+            <input type="range" id="densityRange" min="1" max="5" step="1" value="1">
+        </div>
+        <div class="control-group">
+            <label>吸引力:</label>
+            <input type="range" id="attractionRange" min="0" max="150" step="5" value="50">
+        </div>
+        <div class="control-group">
+            <label>吸引范围:</label>
+            <input type="range" id="radiusRange" min="50" max="300" step="10" value="150">
+        </div>
+        <button id="updateBtn">更新</button>
+        <div class="control-group">
+            <label>渐变起始色:</label>
+            <input type="color" id="startColor" value="#667eea">
+        </div>
+        <div class="control-group">
+            <label>渐变结束色:</label>
+            <input type="color" id="endColor" value="#764ba2">
+        </div>
+    </div>
+    
+    <div class="preset-colors" id="presetColors">
+    </div>
+    
+    <div class="info">拖动鼠标可旋转视角 | 鼠标靠近粒子会被吸引 | 按鼠标左键拖动旋转</div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const textCanvas = document.createElement('canvas');
+        const textCtx = textCanvas.getContext('2d');
+        
+        canvas.width = 800;
+        canvas.height = 500;
+        textCanvas.width = canvas.width;
+        textCanvas.height = canvas.height;
+        
+        let text = '你好世界';
+        let particles = [];
+        let angleX = 0.3;
+        let angleY = 0;
+        let rotationSpeed = 0.005;
+        let particleSize = 4;
+        let density = 1;
+        let mouseX = 0;
+        let mouseY = 0;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let colorScheme = 0;
+        let mouseInCanvas = false;
+        let attractionStrength = 50;
+        let attractionRadius = 150;
+        let customStartColor = '#667eea';
+        let customEndColor = '#764ba2';
+        let useCustomColors = true;
+        
+        const colorSchemes = [
+            { start: '#667eea', end: '#764ba2' },
+            { start: '#f093fb', end: '#f5576c' },
+            { start: '#4facfe', end: '#00f2fe' },
+            { start: '#43e97b', end: '#38f9d7' },
+            { start: '#fa709a', end: '#fee140' },
+        ];
+        
+        class Particle {
+            constructor(x, y, z) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.originalX = x;
+                this.originalY = y;
+                this.originalZ = z;
+                this.targetX = x;
+                this.targetY = y;
+                this.targetZ = z;
+                this.vx = 0;
+                this.vy = 0;
+                this.vz = 0;
+                this.size = Math.random() * 1.5 + 1.5;
+                this.alpha = 0.9 + Math.random() * 0.1;
+                this.delay = Math.random() * 2;
+            }
+            
+            rotateX(angle) {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const y = this.y * cos - this.z * sin;
+                const z = this.y * sin + this.z * cos;
+                return { y, z };
+            }
+            
+            rotateY(angle) {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const x = this.x * cos + this.z * sin;
+                const z = -this.x * sin + this.z * cos;
+                return { x, z };
+            }
+            
+            project(centerX, centerY, fov, viewDistance) {
+                const scale = fov / (fov + this.z + viewDistance);
+                return {
+                    x: this.x * scale + centerX,
+                    y: this.y * scale + centerY,
+                    scale: scale
+                };
+            }
+            
+            update(time, mouseX2D, mouseY2D, isMouseInCanvas, currentAngleX, currentAngleY) {
+                const distFromCenter = Math.sqrt(
+                    this.originalX * this.originalX + 
+                    this.originalY * this.originalY
+                );
+                
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const fov = 500;
+                const viewDistance = 300;
+                
+                const rotatedX = this.rotateY(currentAngleY);
+                const rotatedY = this.rotateX(currentAngleX);
+                
+                const tempX = rotatedX.x;
+                const tempZ = rotatedX.z;
+                const tempY = rotatedY.y;
+                
+                const scale = fov / (fov + tempZ + viewDistance);
+                const screenX = tempX * scale + centerX;
+                const screenY = tempY * scale + centerY;
+                
+                if (isMouseInCanvas && !isDragging) {
+                    const dx = mouseX2D - screenX;
+                    const dy = mouseY2D - screenY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < attractionRadius && dist > 0) {
+                        const force = (1 - dist / attractionRadius) * attractionStrength;
+                        const angle = Math.atan2(dy, dx);
+                        
+                        const moveX = Math.cos(angle) * force * 0.05;
+                        const moveY = Math.sin(angle) * force * 0.05;
+                        
+                        const invRotatedX = this.inverseRotateY(moveX, 0, currentAngleY);
+                        const invRotatedY = this.inverseRotateX(invRotatedX.x, moveY, invRotatedX.z, currentAngleX);
+                        
+                        this.targetX += invRotatedY.x * 0.3;
+                        this.targetY += invRotatedY.y * 0.3;
+                        this.targetZ += invRotatedY.z * 0.3;
+                    }
+                }
+                
+                this.targetX += (this.originalX - this.targetX) * 0.03;
+                this.targetY += (this.originalY - this.targetY) * 0.03;
+                
+                const wave = Math.sin(time * 0.002 + distFromCenter * 0.01) * 3;
+                this.targetZ += (this.originalZ + wave - this.targetZ) * 0.03;
+                
+                this.x += (this.targetX - this.x) * 0.15;
+                this.y += (this.targetY - this.y) * 0.15;
+                this.z += (this.targetZ - this.z) * 0.15;
+            }
+            
+            inverseRotateX(x, y, z, angle) {
+                const cos = Math.cos(-angle);
+                const sin = Math.sin(-angle);
+                const newY = y * cos - z * sin;
+                const newZ = y * sin + z * cos;
+                return { x, y: newY, z: newZ };
+            }
+            
+            inverseRotateY(x, z, angle) {
+                const cos = Math.cos(-angle);
+                const sin = Math.sin(-angle);
+                const newX = x * cos - z * sin;
+                const newZ = x * sin + z * cos;
+                return { x: newX, y: 0, z: newZ };
+            }
+            
+            getColor(depth, scheme, alphaOverride = null) {
+                let startColor, endColor;
+                
+                if (useCustomColors) {
+                    startColor = customStartColor;
+                    endColor = customEndColor;
+                } else {
+                    const colors = colorSchemes[scheme];
+                    startColor = colors.start;
+                    endColor = colors.end;
+                }
+                
+                const t = Math.min(1, Math.max(0, (depth + 200) / 400));
+                
+                const start = this.hexToRgb(startColor);
+                const end = this.hexToRgb(endColor);
+                
+                const r = Math.round(start.r + (end.r - start.r) * t);
+                const g = Math.round(start.g + (end.g - start.g) * t);
+                const b = Math.round(start.b + (end.b - start.b) * t);
+                const a = alphaOverride !== null ? alphaOverride : this.alpha;
+                
+                return `rgba(${r}, ${g}, ${b}, ${a})`;
+            }
+            
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : { r: 102, g: 126, b: 234 };
+            }
+        }
+        
+        function createTextParticles() {
+            particles = [];
+            
+            textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+            textCtx.fillStyle = '#fff';
+            textCtx.font = 'bold 160px Microsoft YaHei, sans-serif';
+            textCtx.textAlign = 'center';
+            textCtx.textBaseline = 'middle';
+            textCtx.fillText(text, textCanvas.width / 2, textCanvas.height / 2);
+            
+            const imageData = textCtx.getImageData(0, 0, textCanvas.width, textCanvas.height);
+            const data = imageData.data;
+            
+            const gap = density;
+            const centerX = textCanvas.width / 2;
+            const centerY = textCanvas.height / 2;
+            
+            for (let y = 0; y < textCanvas.height; y += gap) {
+                for (let x = 0; x < textCanvas.width; x += gap) {
+                    const index = (y * textCanvas.width + x) * 4;
+                    if (data[index + 3] > 50) {
+                        const px = x - centerX;
+                        const py = y - centerY;
+                        const pz = (Math.random() - 0.5) * 80;
+                        
+                        particles.push(new Particle(px, py, pz));
+                    }
+                }
+            }
+            
+            particles.forEach((p, i) => {
+                p.delay = i * 0.005;
+            });
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const fov = 500;
+            const viewDistance = 300;
+            
+            const projectedParticles = particles.map((p, index) => {
+                const rotatedX = p.rotateY(angleY);
+                const rotatedY = p.rotateX(angleX);
+                
+                const tempX = rotatedX.x;
+                const tempZ = rotatedX.z;
+                const tempY = rotatedY.y;
+                
+                const scale = fov / (fov + tempZ + viewDistance);
+                
+                return {
+                    particle: p,
+                    x: tempX * scale + centerX,
+                    y: tempY * scale + centerY,
+                    z: tempZ,
+                    scale: scale,
+                    index: index
+                };
+            });
+            
+            projectedParticles.sort((a, b) => a.z - b.z);
+            
+            ctx.globalCompositeOperation = 'lighter';
+            
+            projectedParticles.forEach(pp => {
+                const size = particleSize * pp.scale;
+                const baseColor = pp.particle.getColor(pp.z, colorScheme);
+                const outerGlowColor = pp.particle.getColor(pp.z, colorScheme, 0.3);
+                const innerGlowColor = pp.particle.getColor(pp.z, colorScheme, 0.5);
+                
+                ctx.beginPath();
+                ctx.arc(pp.x, pp.y, size * 3, 0, Math.PI * 2);
+                const outerGlow = ctx.createRadialGradient(
+                    pp.x, pp.y, 0,
+                    pp.x, pp.y, size * 3
+                );
+                outerGlow.addColorStop(0, outerGlowColor);
+                outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = outerGlow;
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(pp.x, pp.y, size * 2, 0, Math.PI * 2);
+                const innerGlow = ctx.createRadialGradient(
+                    pp.x, pp.y, 0,
+                    pp.x, pp.y, size * 2
+                );
+                innerGlow.addColorStop(0, innerGlowColor);
+                innerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = innerGlow;
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(pp.x, pp.y, size, 0, Math.PI * 2);
+                ctx.fillStyle = baseColor;
+                ctx.fill();
+            });
+            
+            ctx.globalCompositeOperation = 'source-over';
+        }
+        
+        function animate(time) {
+            if (!isDragging) {
+                angleY += rotationSpeed;
+            }
+            
+            particles.forEach(p => p.update(time, mouseX, mouseY, mouseInCanvas, angleX, angleY));
+            
+            draw();
+            requestAnimationFrame(animate);
+        }
+        
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            mouseInCanvas = true;
+            
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                angleY += deltaX * 0.005;
+                angleX += deltaY * 0.005;
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+        
+        canvas.addEventListener('mouseenter', () => {
+            mouseInCanvas = true;
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            mouseInCanvas = false;
+        });
+        
+        document.getElementById('updateBtn').addEventListener('click', () => {
+            text = document.getElementById('textInput').value || '你好世界';
+            createTextParticles();
+        });
+        
+        document.getElementById('textInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                text = document.getElementById('textInput').value || '你好世界';
+                createTextParticles();
+            }
+        });
+        
+        document.getElementById('speedRange').addEventListener('input', (e) => {
+            rotationSpeed = parseFloat(e.target.value) * 0.005;
+        });
+        
+        document.getElementById('sizeRange').addEventListener('input', (e) => {
+            particleSize = parseInt(e.target.value);
+        });
+        
+        document.getElementById('densityRange').addEventListener('input', (e) => {
+            density = parseInt(e.target.value);
+        });
+        
+        document.getElementById('attractionRange').addEventListener('input', (e) => {
+            attractionStrength = parseInt(e.target.value);
+        });
+        
+        document.getElementById('radiusRange').addEventListener('input', (e) => {
+            attractionRadius = parseInt(e.target.value);
+        });
+        
+        document.getElementById('startColor').addEventListener('input', (e) => {
+            customStartColor = e.target.value;
+            useCustomColors = true;
+        });
+        
+        document.getElementById('endColor').addEventListener('input', (e) => {
+            customEndColor = e.target.value;
+            useCustomColors = true;
+        });
+        
+        function initPresetColors() {
+            const container = document.getElementById('presetColors');
+            colorSchemes.forEach((scheme, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'preset-btn';
+                btn.style.background = `linear-gradient(135deg, ${scheme.start} 0%, ${scheme.end} 100%)`;
+                btn.title = `预设方案 ${index + 1}`;
+                btn.addEventListener('click', () => {
+                    customStartColor = scheme.start;
+                    customEndColor = scheme.end;
+                    useCustomColors = true;
+                    document.getElementById('startColor').value = scheme.start;
+                    document.getElementById('endColor').value = scheme.end;
+                });
+                container.appendChild(btn);
+            });
+        }
+        
+        initPresetColors();
+        createTextParticles();
+        animate(0);
+    </script>
+</body>
+</html>
